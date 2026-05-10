@@ -1,0 +1,81 @@
+{
+  "name": "autodoc-janitor",
+  "displayName": "Auto-Doc Janitor",
+  "description": "Autonomous background agent that keeps STRUCTURE.md and ARCHITECTURE.md synced with your code.",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "autodoc-janitor-explorer",
+          "title": "Auto-Doc Janitor",
+          "icon": "resources/janitor-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "autodoc-janitor-explorer": [
+        {
+          "id": "autodoc-janitor-sidebar",
+          "name": "Documentation Agent"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "janitor.pause",
+        "title": "Janitor: Pause Watching"
+      },
+      {
+        "command": "janitor.forceUpdate",
+        "title": "Janitor: Force Update Documentation"
+      },
+      {
+        "command": "janitor.openDiff",
+        "title": "Janitor: View Last Diff"
+      },
+      {
+        "command": "janitor.fullRegen",
+        "title": "Janitor: Full-Repo Regeneration (Pro)"
+      }
+    ],
+    "configuration": {
+      "title": "Auto-Doc Janitor",
+      "properties": {
+        "janitor.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Auto-Doc Janitor agent."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.75.0",
+    "@types/glob": "^8.1.0",
+    "@types/node": "16.x",
+    "@typescript-eslint/eslint-plugin": "^5.59.1",
+    "@typescript-eslint/parser": "^5.59.1",
+    "eslint": "^8.39.0",
+    "glob": "^8.1.0",
+    "typescript": "^5.0.4"
+  }
+}

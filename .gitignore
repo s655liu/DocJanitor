@@ -1,0 +1,29 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+extension/out/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# VS Code / Cursor
+.vscode/
+.vscode-test/
+*.vsix
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+build/

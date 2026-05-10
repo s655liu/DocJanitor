@@ -1,0 +1,4 @@
+watchdog
+tree-sitter
+requests
+python-dotenv

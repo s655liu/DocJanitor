@@ -1,0 +1,13 @@
+{
+  "watch": ["agent/**", "extension/src/**"],
+  "ignore": ["**/*.md", "**/node_modules/**"],
+  "debounce_ms": 500,
+  "change_thresholds": {
+    "minor_min_symbols": 1,
+    "major_min_symbols": 3
+  },
+  "models": {
+    "minor": "claude-3-haiku",
+    "major": "claude-3-sonnet"
+  }
+}
