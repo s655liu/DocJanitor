@@ -1,9 +1,11 @@
 def route_request(tier):
     """
-    Picks a model based on the change tier.
+    CLōD-powered model routing.
+    Minor changes -> Qwen 2.5 7B (fast, efficient)
+    Major changes -> Qwen 2.5 72B (deep reasoning)
     """
     if tier == 'minor':
-        return "gemini-3.1-flash"
+        return "qwen-2.5-7b-instruct"
     elif tier == 'major':
-        return "gemini-3.1-pro"
-    return "gemini-3.1-flash" # Fallback
+        return "qwen-2.5-72b-instruct"
+    return "qwen-2.5-7b-instruct"  # Fallback

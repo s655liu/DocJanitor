@@ -28,7 +28,8 @@
       "autodoc-janitor-explorer": [
         {
           "id": "autodoc-janitor-sidebar",
-          "name": "Documentation Agent"
+          "name": "Documentation Agent",
+          "type": "webview"
         }
       ]
     },

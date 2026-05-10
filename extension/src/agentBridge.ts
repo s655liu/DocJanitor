@@ -5,6 +5,7 @@ import * as path from 'path';
 export class AgentBridge {
     private agentProcess: ChildProcess | null = null;
     private statusListeners: ((status: any) => void)[] = [];
+    private stdoutBuffer: string = '';
 
     constructor(
         private context: vscode.ExtensionContext,
@@ -12,32 +13,51 @@ export class AgentBridge {
     ) {}
 
     public start() {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
         const agentPath = path.join(this.context.extensionPath, '..', 'agent', 'main.py');
-        const pythonPath = 'python'; // Should be configurable
+        const pythonPath = 'C:\\Users\\s314l\\miniconda3\\python.exe';
 
-        console.log(`Spawning agent: ${pythonPath} ${agentPath}`);
+        this.outputChannel.appendLine(`[Bridge] Agent script: ${agentPath}`);
+        this.outputChannel.appendLine(`[Bridge] Working dir: ${workspaceFolder}`);
+        this.outputChannel.show();
 
         this.agentProcess = spawn(pythonPath, [agentPath], {
-            cwd: vscode.workspace.workspaceFolders?.[0].uri.fsPath
+            cwd: workspaceFolder
         });
 
         this.agentProcess.stdout?.on('data', (data) => {
-            this.outputChannel.appendLine(`Agent Stdout: ${data}`);
-            try {
-                const payload = JSON.parse(data.toString());
-                this.notifyListeners(payload);
-            } catch (e) {
-                console.log(`Agent output: ${data}`);
+            this.stdoutBuffer += data.toString();
+            const lines = this.stdoutBuffer.split('\n');
+            // Keep the last (possibly incomplete) line in the buffer
+            this.stdoutBuffer = lines.pop() || '';
+            
+            for (const line of lines) {
+                const trimmed = line.trim();
+                this.outputChannel.appendLine(`[Line]: ${trimmed}`);
+                
+                if (trimmed.startsWith('{')) {
+                    try {
+                        const payload = JSON.parse(trimmed);
+                        if (payload.event) {
+                            this.outputChannel.appendLine(`[Parsed OK]: event=${payload.event}, tier=${payload.tier}`);
+                            this.notifyListeners(payload);
+                            if (payload.event === 'updated') {
+                                vscode.window.showInformationMessage(`Janitor: ${payload.summary}`);
+                            }
+                        }
+                    } catch (e) {
+                        this.outputChannel.appendLine(`[Parse Failed]: ${trimmed.substring(0, 80)}...`);
+                    }
+                }
             }
         });
 
         this.agentProcess.stderr?.on('data', (data) => {
-            console.error(`Agent error: ${data}`);
+            this.outputChannel.appendLine(`[Agent Error]: ${data}`);
         });
 
         this.agentProcess.on('close', (code) => {
-            console.log(`Agent process exited with code ${code}`);
-            // Handle restart logic
+            this.outputChannel.appendLine(`[Bridge] Agent exited with code ${code}`);
         });
     }
 
