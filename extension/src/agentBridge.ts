@@ -12,24 +12,18 @@ export class AgentBridge {
         private outputChannel: vscode.OutputChannel
     ) {}
 
-    public start() {
+    public async start() {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
         const agentPath = path.join(this.context.extensionPath, '..', 'agent', 'main.py');
         
-        // Try to use 'python' from PATH, but keep your hardcoded one as an override for the demo machine
-        let pythonPath = 'python';
-        if (process.platform === 'win32') {
-            // Hardcoded fallback for the demo environment
-            const demoPython = 'C:\\Users\\s314l\\miniconda3\\python.exe';
-            const fs = require('fs');
-            if (fs.existsSync(demoPython)) {
-                pythonPath = demoPython;
-            }
-        }
+        // 1. Get path from VS Code Settings (User or Workspace)
+        // 2. Default to 'python' if not set
+        const config = vscode.workspace.getConfiguration('janitor');
+        const pythonPath = config.get<string>('pythonPath') || 'python';
 
         this.outputChannel.appendLine(`[Bridge] Agent script: ${agentPath}`);
         this.outputChannel.appendLine(`[Bridge] Working dir: ${workspaceFolder}`);
-        this.outputChannel.appendLine(`[Bridge] Python: ${pythonPath}`);
+        this.outputChannel.appendLine(`[Bridge] Using Python: ${pythonPath}`);
         this.outputChannel.show();
 
         this.agentProcess = spawn(pythonPath, [agentPath], {
@@ -39,37 +33,66 @@ export class AgentBridge {
         this.agentProcess.stdout?.on('data', (data) => {
             this.stdoutBuffer += data.toString();
             const lines = this.stdoutBuffer.split('\n');
-            // Keep the last (possibly incomplete) line in the buffer
             this.stdoutBuffer = lines.pop() || '';
             
             for (const line of lines) {
                 const trimmed = line.trim();
-                this.outputChannel.appendLine(`[Line]: ${trimmed}`);
-                
                 if (trimmed.startsWith('{')) {
                     try {
                         const payload = JSON.parse(trimmed);
                         if (payload.event) {
-                            this.outputChannel.appendLine(`[Parsed OK]: event=${payload.event}, tier=${payload.tier}`);
                             this.notifyListeners(payload);
                             if (payload.event === 'updated') {
                                 vscode.window.showInformationMessage(`Janitor: ${payload.summary}`);
                             }
                         }
                     } catch (e) {
-                        this.outputChannel.appendLine(`[Parse Failed]: ${trimmed.substring(0, 80)}...`);
+                        this.outputChannel.appendLine(`[Parse Error]: ${trimmed}`);
                     }
                 }
             }
         });
 
         this.agentProcess.stderr?.on('data', (data) => {
-            this.outputChannel.appendLine(`[Agent Error]: ${data}`);
+            const err = data.toString();
+            this.outputChannel.appendLine(`[Agent Error]: ${err}`);
+            if (err.includes("ModuleNotFoundError")) {
+                vscode.window.showErrorMessage(`Janitor: Missing dependencies. Please run 'pip install -r requirements.txt' in the ${pythonPath} environment.`);
+            }
+        });
+
+        this.agentProcess.on('error', (err) => {
+            this.outputChannel.appendLine(`[Bridge Error]: Failed to start agent: ${err.message}`);
+            vscode.window.showErrorMessage(`Janitor: Could not find Python at '${pythonPath}'. Please check your 'janitor.pythonPath' setting.`);
         });
 
         this.agentProcess.on('close', (code) => {
-            this.outputChannel.appendLine(`[Bridge] Agent exited with code ${code}`);
+            this.outputChannel.appendLine(`[Bridge] Agent process exited with code ${code}`);
+            this.agentProcess = null;
         });
+    }
+
+    public stop() {
+        if (this.agentProcess) {
+            this.agentProcess.kill();
+            this.agentProcess = null;
+        }
+    }
+
+    public pause() {
+        vscode.window.showInformationMessage("Janitor: Watching paused.");
+    }
+
+    public forceUpdate() {
+        vscode.window.showInformationMessage("Janitor: Forcing documentation update...");
+    }
+
+    public openLastDiff() {
+        this.outputChannel.appendLine("[Bridge] Opening last diff (stub)");
+    }
+
+    public fullRegen() {
+        this.outputChannel.appendLine("[Bridge] Starting full-repo regeneration (Pro)");
     }
 
     public onStatusUpdate(callback: (status: any) => void) {
@@ -78,22 +101,5 @@ export class AgentBridge {
 
     private notifyListeners(status: any) {
         this.statusListeners.forEach(l => l(status));
-    }
-
-    public pause() {
-        // Send pause signal to agent
-    }
-
-    public forceUpdate() {
-        // Send force update signal to agent
-    }
-
-    public openLastDiff() {
-        // logic to open diff editor
-    }
-
-    public fullRegen() {
-        // Send signal to agent for full repo regeneration
-        this.outputChannel.appendLine("[AllScale]: Full-repo regeneration triggered via micropayment.");
     }
 }

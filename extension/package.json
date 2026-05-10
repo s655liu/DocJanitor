@@ -58,6 +58,11 @@
           "type": "boolean",
           "default": true,
           "description": "Enable Auto-Doc Janitor agent."
+        },
+        "janitor.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "description": "Path to the Python executable. Leave as 'python' to use the system default."
         }
       }
     }
