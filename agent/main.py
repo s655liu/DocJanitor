@@ -1,8 +1,13 @@
 import sys
 import json
 import time
+import os
+from dotenv import load_dotenv
 from watcher import start_watcher
 from ipc import send_status
+
+# Load API keys from .env file
+load_dotenv()
 
 def main():
     print("Auto-Doc Janitor Agent starting...")

@@ -10,7 +10,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onView:autodoc-janitor-sidebar"
   ],
   "main": "./out/extension.js",
   "contributes": {
