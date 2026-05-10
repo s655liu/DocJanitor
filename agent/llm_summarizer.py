@@ -2,6 +2,7 @@ import os
 import re
 import requests
 from datetime import datetime
+from nia_client import get_nia_context
 
 def summarize_impact(change_set, tier_info, model_name):
     """
@@ -21,10 +22,13 @@ def summarize_impact(change_set, tier_info, model_name):
         with open(structure_path, 'r', encoding='utf-8') as f:
             current_structure = f.read()
     
+    # Fetch Nia context to ground the AI with real project knowledge
+    nia_context = get_nia_context(os.path.basename(change_set['file']))
+
     # Try CLōD API first
     clod_key = os.getenv("CLOD_API_KEY")
     if clod_key:
-        result = _call_clod(change_set, tier_info, model_name, current_structure, clod_key, is_deleted)
+        result = _call_clod(change_set, tier_info, model_name, current_structure, clod_key, is_deleted, nia_context)
         if result:
             result['structure_path'] = structure_path
             return result
@@ -35,7 +39,7 @@ def summarize_impact(change_set, tier_info, model_name):
     return result
 
 
-def _call_clod(change_set, tier_info, model_name, current_structure, api_key, is_deleted):
+def _call_clod(change_set, tier_info, model_name, current_structure, api_key, is_deleted, nia_context=""):
     """Call CLōD API to generate updated STRUCTURE.md."""
     actual_model = "Qwen/Qwen2.5-7B-Instruct-Turbo" if tier_info['tier'] == 'minor' else "Qwen/Qwen2.5-72B-Instruct-Turbo"
     filename = os.path.basename(change_set['file'])
@@ -48,7 +52,9 @@ def _call_clod(change_set, tier_info, model_name, current_structure, api_key, is
         action_msg = f"The user just modified `{filename}`. Here is the new file content:\n---\n{change_set['raw_diff']}\n---"
         instruction = f"1. Update ONLY the section for `{filename}` in the STRUCTURE.md.\n2. Update the **Exports** to reflect only the functions/classes CURRENTLY PRESENT in the file. If something was removed from the code, REMOVE it from the Exports list in STRUCTURE.md."
 
-    prompt = f"""You are Auto-Doc Janitor. Your job is to keep STRUCTURE.md perfectly synced with the codebase.
+    nia_section = f"\n\nAdditional context from Nia (project knowledge base):\n---\n{nia_context}\n---" if nia_context else ""
+
+    prompt = f"""You are Auto-Doc Janitor. Your job is to keep STRUCTURE.md perfectly synced with the codebase.{nia_section}
 
 Here is the CURRENT STRUCTURE.md:
 ---
