@@ -78,12 +78,17 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                             console.log('Status payload:', JSON.stringify(status));
                             const container = document.getElementById('status-container');
                             
-                            // Build HTML without the diff first
+                            const isUpdating = status.event === 'updating';
+                            const cardClass = status.tier === 'major' ? 'tier-major' : '';
+                            const statusTag = isUpdating ? 'Processing' : \`\${status.tier} Change\`;
+                            const pulseHtml = isUpdating ? '<span class="pulse"></span>' : '';
+
                             container.innerHTML = \`
-                                <div class="\${status.tier === 'major' ? 'tier-major' : ''}">
+                                <div class="\${cardClass}">
                                     <div class="card">
                                         <div class="header">
-                                            <span class="tier-tag">\${status.tier} Change</span>
+                                            \${pulseHtml}
+                                            <span class="tier-tag">\${statusTag}</span>
                                         </div>
                                         <div class="model">Model: \${status.model}</div>
                                         <div class="summary">\${status.summary}</div>
@@ -93,8 +98,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                                 </div>
                             \`;
                             
-                            // Safely set the diff using textContent (avoids breaking template)
-                            if (status.diff) {
+                            if (status.diff && !isUpdating) {
                                 const diffEl = document.getElementById('diff-block');
                                 diffEl.textContent = status.diff;
                                 diffEl.style.display = 'block';

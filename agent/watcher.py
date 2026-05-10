@@ -30,35 +30,44 @@ class JanitorHandler(PatternMatchingEventHandler):
         self.debounce_timer = None
 
     def on_modified(self, event):
-        self._handle_event(event)
+        self._handle_event(event, "modified")
 
     def on_created(self, event):
-        self._handle_event(event)
+        self._handle_event(event, "created")
 
-    def _handle_event(self, event):
+    def on_deleted(self, event):
+        self._handle_event(event, "deleted")
+
+    def _handle_event(self, event, event_type):
         if event.is_directory:
             return
+        
+        abs_path = os.path.abspath(event.src_path)
         
         # Debounce logic: cancel previous timer and start a new one
         if self.debounce_timer:
             self.debounce_timer.cancel()
         
-        self.debounce_timer = threading.Timer(1.0, self.process_change, [event.src_path])
+        self.debounce_timer = threading.Timer(1.0, self.process_change, [abs_path, event_type])
         self.debounce_timer.start()
-        safe_print(f"Detected event in {os.path.basename(event.src_path)}, waiting for save to settle...")
+        safe_print(f"Detected {event_type} in {os.path.basename(abs_path)}, waiting for save to settle...")
 
-    def process_change(self, file_path):
+    def process_change(self, file_path, event_type="modified"):
         send_status({
             "event": "updating", 
             "tier": "Analyzing", 
             "model": "...", 
-            "summary": f"Analyzing {os.path.basename(file_path)}...",
-            "reasoning": f"Filesystem event detected for {file_path}. Initiating AST parsing and diff analysis."
+            "summary": f"Analyzing {os.path.basename(file_path)} ({event_type})...",
+            "reasoning": f"Filesystem {event_type} event detected for {os.path.basename(file_path)}. Initiating AST parsing and diff analysis."
         })
         
         # Pipeline execution
-        change_set = parse_change(file_path)
-        tier_info = classify_change(change_set)
+        if event_type == "deleted":
+            change_set = {"file": file_path, "raw_diff": "", "deleted": True}
+            tier_info = {"tier": "major", "reason": "File deletion"}
+        else:
+            change_set = parse_change(file_path)
+            tier_info = classify_change(change_set)
         
         safe_print(f"\n--- Analysis Results for {os.path.basename(file_path)} ---")
         safe_print(f"Tier: {tier_info['tier'].upper()} ({tier_info['reason']})")

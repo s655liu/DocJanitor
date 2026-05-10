@@ -15,10 +15,21 @@ export class AgentBridge {
     public start() {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
         const agentPath = path.join(this.context.extensionPath, '..', 'agent', 'main.py');
-        const pythonPath = 'C:\\Users\\s314l\\miniconda3\\python.exe';
+        
+        // Try to use 'python' from PATH, but keep your hardcoded one as an override for the demo machine
+        let pythonPath = 'python';
+        if (process.platform === 'win32') {
+            // Hardcoded fallback for the demo environment
+            const demoPython = 'C:\\Users\\s314l\\miniconda3\\python.exe';
+            const fs = require('fs');
+            if (fs.existsSync(demoPython)) {
+                pythonPath = demoPython;
+            }
+        }
 
         this.outputChannel.appendLine(`[Bridge] Agent script: ${agentPath}`);
         this.outputChannel.appendLine(`[Bridge] Working dir: ${workspaceFolder}`);
+        this.outputChannel.appendLine(`[Bridge] Python: ${pythonPath}`);
         this.outputChannel.show();
 
         this.agentProcess = spawn(pythonPath, [agentPath], {
