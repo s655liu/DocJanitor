@@ -49,8 +49,11 @@ class JanitorHandler(PatternMatchingEventHandler):
             self.debounce_timer.cancel()
         
         self.debounce_timer = threading.Timer(1.0, self.process_change, [abs_path, event_type])
-        self.debounce_timer.start()
-        safe_print(f"Detected {event_type} in {os.path.basename(abs_path)}, waiting for save to settle...")
+        # Skip internal and ignored directories
+        if any(ignored in event.src_path for ignored in ['.git', '__pycache__', '.vscode', '.idea']):
+            return
+            
+        print(f"Detected {event_type} in {os.path.basename(event.src_path)}, waiting for save to settle...")
 
     def process_change(self, file_path, event_type="modified"):
         send_status({
@@ -87,23 +90,45 @@ class JanitorHandler(PatternMatchingEventHandler):
         model = route_request(tier_info['tier'])
         safe_print(f"Routing to Model: {model}")
         
-        summary_info = summarize_impact(change_set, tier_info, model)
-        safe_print(f"LLM Summary: {summary_info['summary']}")
-        safe_print(f"\n--- AI Response ---")
-        patch_preview = summary_info['patch'][:500] if summary_info['patch'] else "No patch"
-        safe_print(patch_preview)
-        safe_print("-------------------------------------------\n")
+        # Multi-doc orchestration
+        from config_loader import load_janitor_config, is_file_in_scope
+        watch_path = os.getenv("WATCH_PATH", ".")
+        config = load_janitor_config(watch_path)
         
-        patch_docs(file_path, summary_info)
-        
-        send_status({
-            "event": "updated",
-            "tier": tier_info['tier'],
-            "model": model,
-            "summary": summary_info['summary'],
-            "diff": change_set['raw_diff'],
-            "reasoning": f"Change classified as {tier_info['tier']}. Routed to {model}. Documentation patched successfully."
-        })
+        updated_count = 0
+        for doc_config in config.get("docs", []):
+            # Skip if file is not in scope for this doc
+            if not is_file_in_scope(file_path, doc_config['scope'], watch_path):
+                continue
+
+            # Skip Architecture if tier is not major
+            if doc_config.get("tier_filter") and tier_info['tier'] not in doc_config['tier_filter']:
+                continue
+
+            safe_print(f"-> Updating {doc_config['file']}...")
+            summary_info = summarize_impact(change_set, tier_info, model, doc_config)
+            
+            if summary_info and summary_info['patch']:
+                patch_docs(file_path, summary_info)
+                updated_count += 1
+                
+                send_status({
+                    "event": "updated",
+                    "tier": tier_info['tier'],
+                    "model": model,
+                    "summary": f"Updated {doc_config['file']}: {summary_info['summary']}",
+                    "diff": change_set['raw_diff'],
+                    "reasoning": f"Change classified as {tier_info['tier']}. Patching {doc_config['file']} based on scope '{doc_config['scope']}'."
+                })
+
+        if updated_count == 0:
+            send_status({
+                "event": "idle",
+                "tier": tier_info['tier'],
+                "model": model,
+                "summary": "No matching docs in scope.",
+                "reasoning": "The changed file did not match any scope patterns in .janitor.config.json."
+            })
 
 def start_watcher():
     # Allow watching an external directory via environment variable

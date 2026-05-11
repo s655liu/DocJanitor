@@ -4,23 +4,25 @@ import requests
 from datetime import datetime
 from nia_client import get_nia_context
 
-def summarize_impact(change_set, tier_info, model_name):
+def summarize_impact(change_set, tier_info, model_name, target_doc):
     """
-    Reads current STRUCTURE.md, sends it + the diff to CLōD AI,
-    and returns the updated STRUCTURE.md content.
+    Reads target document, sends it + the diff to CLōD AI,
+    and returns the updated content.
     """
     filename = os.path.basename(change_set['file'])
     is_deleted = change_set.get('deleted', False)
     
-    # Read the current STRUCTURE.md
-    structure_path = os.path.join(os.path.dirname(change_set['file']), "STRUCTURE.md")
-    if not os.path.exists(structure_path):
-        structure_path = "STRUCTURE.md"
+    # Read the current documentation file
+    doc_path = os.path.join(os.path.dirname(change_set['file']), target_doc['file'])
+    # If the file is at the root of the watch path
+    watch_path = os.getenv("WATCH_PATH", ".")
+    if not os.path.exists(doc_path):
+        doc_path = os.path.join(watch_path, target_doc['file'])
     
-    current_structure = ""
-    if os.path.exists(structure_path):
-        with open(structure_path, 'r', encoding='utf-8') as f:
-            current_structure = f.read()
+    current_content = ""
+    if os.path.exists(doc_path):
+        with open(doc_path, 'r', encoding='utf-8') as f:
+            current_content = f.read()
     
     # Fetch Nia context to ground the AI with real project knowledge
     nia_context = get_nia_context(os.path.basename(change_set['file']))
@@ -28,35 +30,41 @@ def summarize_impact(change_set, tier_info, model_name):
     # Try CLōD API first
     clod_key = os.getenv("CLOD_API_KEY")
     if clod_key:
-        result = _call_clod(change_set, tier_info, model_name, current_structure, clod_key, is_deleted, nia_context)
+        result = _call_clod(change_set, tier_info, model_name, current_content, clod_key, is_deleted, nia_context, target_doc)
         if result:
-            result['structure_path'] = structure_path
+            result['structure_path'] = doc_path
             return result
 
-    # Fallback: offline heuristic
-    result = _offline_summary(change_set, tier_info, current_structure, is_deleted)
-    result['structure_path'] = structure_path
-    return result
+    # Fallback: offline heuristic (only for STRUCTURE.md)
+    if target_doc['file'] == "STRUCTURE.md":
+        result = _offline_summary(change_set, tier_info, current_content, is_deleted)
+        result['structure_path'] = doc_path
+        return result
+    
+    return None
 
 
-def _call_clod(change_set, tier_info, model_name, current_structure, api_key, is_deleted, nia_context=""):
-    """Call CLōD API to generate updated STRUCTURE.md."""
+def _call_clod(change_set, tier_info, model_name, current_structure, api_key, is_deleted, nia_context="", target_doc=None):
+    """Call CLōD API to generate updated documentation."""
     actual_model = "Qwen/Qwen2.5-7B-Instruct-Turbo" if tier_info['tier'] == 'minor' else "Qwen/Qwen2.5-72B-Instruct-Turbo"
     filename = os.path.basename(change_set['file'])
     now = datetime.now().strftime("%Y-%m-%d %I:%M %p")
     
+    doc_type = target_doc['file']
+    doc_focus = target_doc.get('describes', 'general project structure')
+
     if is_deleted:
         action_msg = f"The user just DELETED `{filename}`."
-        instruction = f"1. REMOVE the section for `{filename}` entirely from STRUCTURE.md."
+        instruction = f"1. REMOVE the section for `{filename}` entirely from {doc_type}."
     else:
         action_msg = f"The user just modified `{filename}`. Here is the new file content:\n---\n{change_set['raw_diff']}\n---"
-        instruction = f"1. Update ONLY the section for `{filename}` in the STRUCTURE.md.\n2. Update the **Exports** to reflect only the functions/classes CURRENTLY PRESENT in the file. If something was removed from the code, REMOVE it from the Exports list in STRUCTURE.md."
+        instruction = f"1. Update ONLY the section for `{filename}` in the {doc_type}.\n2. This document focuses on: {doc_focus}.\n3. Ensure the documentation accurately reflects the changes in the code."
 
     nia_section = f"\n\nAdditional context from Nia (project knowledge base):\n---\n{nia_context}\n---" if nia_context else ""
 
-    prompt = f"""You are Auto-Doc Janitor. Your job is to keep STRUCTURE.md perfectly synced with the codebase.{nia_section}
+    prompt = f"""You are Auto-Doc Janitor. Your job is to keep {doc_type} perfectly synced with the codebase.{nia_section}
 
-Here is the CURRENT STRUCTURE.md:
+Here is the CURRENT {doc_type}:
 ---
 {current_structure}
 ---
@@ -69,10 +77,10 @@ Timestamp: {now}
 
 INSTRUCTIONS:
 {instruction}
-3. Update the **Last Updated** timestamp to: {now} (Tier: {tier_info['tier'].capitalize()})
-4. Update the **Model Used** to: {model_name}
-5. Keep all other sections unchanged.
-6. Return the COMPLETE updated STRUCTURE.md content. Nothing else.
+4. Update the **Last Updated** timestamp (if present) to: {now} (Tier: {tier_info['tier'].capitalize()})
+5. Update the **Model Used** (if present) to: {model_name}
+6. Keep all other sections unchanged.
+7. Return the COMPLETE updated {doc_type} content. Nothing else.
 """
 
     try:
@@ -88,13 +96,13 @@ INSTRUCTIONS:
                     {"role": "system", "content": "You are a documentation maintenance bot. Return only the updated markdown. No explanations."},
                     {"role": "user", "content": prompt}
                 ],
-                "max_tokens": 1000
+                "max_completion_tokens": 1000
             },
             timeout=30
         )
         data = response.json()
         if "error" in data:
-            print(f"[CLōD unavailable: {data['error'].get('message', '')}]")
+            print(f"[CLōD Error] {data['error'].get('message', 'Unknown error')}")
             return None
         text = data["choices"][0]["message"]["content"]
         # Clean up markdown fences if the model wraps it

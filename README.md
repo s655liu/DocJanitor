@@ -13,10 +13,11 @@ Auto-Doc Janitor is a background agent designed for the Google Antigravity ecosy
 ## 🚀 Features
 
 - **Autonomous Background Agent**: Runs silently in the background, watching your filesystem for changes.
-- **Surgical Documentation Patching**: Instead of regenerating whole files, the Janitor uses AI to patch only the relevant sections of your `STRUCTURE.md`.
-- **Agentic Interoperability**: Automatically links with `CLAUDE.md`, `GEMINI.md`, and `CURSOR.md` to ground other AI assistants in the latest project structure.
+- **Multi-Document Suite**: Orchestrates updates across any number of `.md` files (API refs, Onboarding guides, ADRs) via `.janitor.config.json`.
+- **Nia Context Grounding**: Queries Nia's semantic search to retrieve project-level context (Docs, specs) before generating patches.
+- **Surgical Documentation Patching**: Instead of regenerating whole files, the Janitor uses AI to patch only the relevant sections.
+- **Agentic Interoperability**: Automatically links with `CLAUDE.md`, `GEMINI.md`, etc., to ground other AI assistants.
 - **Premium Sidebar UI**: Real-time visual feedback with a "Processing" pulse and detailed change-tier analysis.
-- **Multi-Project Support**: Watch any project directory by simply setting a `WATCH_PATH`.
 
 ## 🤖 Dual-Model Strategy (Powered by CLōD)
 

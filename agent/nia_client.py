@@ -26,7 +26,7 @@ def get_nia_context(filename: str) -> str:
             },
             json={
                 "mode": "query",
-                "query": query
+                "messages": [{"role": "user", "content": query}]
             },
             timeout=10
         )
