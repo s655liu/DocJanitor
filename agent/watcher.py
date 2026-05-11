@@ -49,11 +49,13 @@ class JanitorHandler(PatternMatchingEventHandler):
             self.debounce_timer.cancel()
         
         self.debounce_timer = threading.Timer(1.0, self.process_change, [abs_path, event_type])
+        
         # Skip internal and ignored directories
         if any(ignored in event.src_path for ignored in ['.git', '__pycache__', '.vscode', '.idea']):
             return
             
-        print(f"Detected {event_type} in {os.path.basename(event.src_path)}, waiting for save to settle...")
+        self.debounce_timer.start()
+        print(f"Detected {event_type} in {os.path.basename(abs_path)}, waiting for save to settle...")
 
     def process_change(self, file_path, event_type="modified"):
         send_status({

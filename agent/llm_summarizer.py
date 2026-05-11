@@ -83,27 +83,37 @@ INSTRUCTIONS:
 7. Return the COMPLETE updated {doc_type} content. Nothing else.
 """
 
-    try:
-        response = requests.post(
-            "https://api.clod.io/v1/chat/completions",
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}"
-            },
-            json={
-                "model": actual_model,
-                "messages": [
-                    {"role": "system", "content": "You are a documentation maintenance bot. Return only the updated markdown. No explanations."},
-                    {"role": "user", "content": prompt}
-                ],
-                "max_completion_tokens": 1000
-            },
+    def make_request(token_param):
+        payload = {
+            "model": model_name,
+            "messages": [
+                {"role": "system", "content": "You are a documentation maintenance bot. Return only the updated markdown. No explanations."},
+                {"role": "user", "content": prompt}
+            ],
+            token_param: 1000
+        }
+        return requests.post(
+            "https://api.clod.ai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json=payload,
             timeout=30
         )
+
+    try:
+        # Try new parameter first
+        response = make_request("max_completion_tokens")
         data = response.json()
+        
+        # If it fails due to the parameter name, retry with the old one
+        if response.status_code == 400 and "max_completion_tokens" in data.get("error", {}).get("message", ""):
+            response = make_request("max_tokens")
+            data = response.json()
+
         if "error" in data:
             print(f"[CLōD Error] {data['error'].get('message', 'Unknown error')}")
             return None
+        
+        text = data["choices"][0]["message"]["content"]
         text = data["choices"][0]["message"]["content"]
         # Clean up markdown fences if the model wraps it
         text = re.sub(r'^```(?:markdown)?\s*\n?', '', text.strip())
